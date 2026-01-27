@@ -1,0 +1,124 @@
+# ==============================================================================
+# 🎓 TUTOR MATEMÁTICAS III - EDICIÓN VISIÓN (TEXTO + IMÁGENES + GRÁFICOS) 👁️
+# ==============================================================================
+
+print("⏳ Instalando módulo de visión...")
+!pip install -q -U google-generativeai langchain-google-genai langchain matplotlib numpy pillow
+
+import os
+import getpass
+import base64
+import io
+from PIL import Image
+import matplotlib.pyplot as plt
+import numpy as np
+from google.colab import files # Librería para subir archivos en Colab
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import SystemMessage, HumanMessage
+from IPython.display import display, Markdown
+
+# 1. SEGURIDAD
+if "GOOGLE_API_KEY" not in os.environ:
+    print("\n🔐 Introduce tu API Key:")
+    os.environ["GOOGLE_API_KEY"] = getpass.getpass("Pegar aquí y dar Enter: ")
+
+# 2. MODELO
+try:
+    llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0.1)
+except:
+    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.1)
+
+# 3. FUNCIONES DE APOYO (Procesar imagen para la IA)
+def procesar_imagen(uploaded_files):
+    for fn in uploaded_files.keys():
+        # Abrimos la imagen
+        img_path = fn
+        pil_image = Image.open(img_path)
+        
+        # Convertimos a base64 para que la IA la pueda "leer"
+        buffered = io.BytesIO()
+        pil_image.save(buffered, format="JPEG")
+        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        return pil_image, img_str
+    return None, None
+
+# 4. PERSONALIDAD
+system_prompt = """
+Eres un profesor experto en Matemáticas III (Cálculo Vectorial).
+Puedes VER imágenes que el alumno te envía (ejercicios manuscritos, gráficas, etc.).
+
+REGLAS:
+1. Si te mandan una imagen de un ejercicio, transcríbelo primero a LaTeX y luego resuélvelo.
+2. Usa LaTeX para matemáticas ($...$).
+3. Si debes graficar, genera código Python con 'matplotlib'.
+"""
+history = [SystemMessage(content=system_prompt)]
+
+print("\n" + "="*60)
+print("👁️ ¡PROFESOR CON VISTA ACTIVADO!")
+print("👉 Escribe tu pregunta normalmente.")
+print("👉 Si quieres enviar una imagen, escribe: FOTO")
+print("="*60)
+
+# 5. CHAT
+while True:
+    try:
+        user_input = input("\n🧑‍🎓 Tú: ")
+        
+        # Opción de Salida
+        if user_input.lower() in ["salir", "exit", "chau"]:
+            print("👋 Clase terminada.")
+            break
+            
+        # --- LÓGICA DE IMAGEN ---
+        message_content = []
+        
+        if user_input.strip().upper() == "FOTO":
+            print("\n📂 ABRIENDO SUBIDA DE ARCHIVOS (Selecciona tu imagen)...")
+            uploaded = files.upload()
+            
+            if uploaded:
+                pil_img, b64_img = procesar_imagen(uploaded)
+                display(pil_img) # Mostramos la imagen pequeña
+                print("✅ Imagen recibida. ¿Qué quieres saber sobre ella?")
+                pregunta_imagen = input("Pregunta sobre la imagen: ")
+                
+                # Preparamos el mensaje mixto (Texto + Imagen)
+                message_content = [
+                    {"type": "text", "text": pregunta_imagen},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}
+                ]
+                print("🤔 Analizando imagen...")
+            else:
+                print("⚠️ No se subió ninguna imagen.")
+                continue
+        else:
+            # Mensaje solo texto normal
+            message_content = user_input
+            print("🤔 Profesor pensando...")
+
+        # Enviamos a la IA
+        history.append(HumanMessage(content=message_content))
+        response = llm.invoke(history)
+        
+        # Procesamos respuesta
+        texto = response.content
+        if isinstance(texto, list): texto = "".join([str(x) for x in texto])
+        
+        # Mostrar Texto
+        texto_limpio = texto.split("```python")[0]
+        display(Markdown(f"### 🎓 Profesor:\n{texto_limpio}"))
+        
+        # Ejecutar Gráficos si los hay
+        if "```python" in texto:
+            print("   (Generando gráfico...)")
+            try:
+                codigo = texto.split("```python")[1].split("```")[0]
+                exec(codigo)
+            except: pass
+            
+        history.append(response)
+
+    except Exception as e:
+        print(f"❌ Error: {e}")
