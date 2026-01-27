@@ -1,8 +1,7 @@
 import streamlit as st
 import os
-import google.generativeai as genai
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
@@ -30,7 +29,7 @@ with st.sidebar:
     if uploaded_file:
         image = Image.open(uploaded_file)
         st.image(image, caption="Imagen cargada", use_column_width=True)
-        # Preparar imagen para la IA
+        # Preparar imagen
         import io
         import base64
         buffered = io.BytesIO()
@@ -39,56 +38,75 @@ with st.sidebar:
         image_content = {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_str}"}}
         st.success("✅ Imagen lista para analizar")
 
-# --- GESTIÓN DE SECRETOS (API KEY) ---
+# --- GESTIÓN DE SECRETOS ---
 try:
-    api_key = st.secrets["GOOGLE_API_KEY"]
-    os.environ["GOOGLE_API_KEY"] = api_key
+    if "GOOGLE_API_KEY" in st.secrets:
+        os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+    else:
+        st.error("⚠️ Falta la API KEY en los 'Secrets'.")
+        st.stop()
 except:
-    st.error("⚠️ No se encontró la API KEY. Configúrala en los 'Secrets' de Streamlit Cloud.")
-    st.stop()
+    st.warning("Nota: Ejecutando en modo local o sin secretos configurados.")
+
+# --- FUNCIÓN INTELIGENTE PARA SELECCIONAR MODELO ---
+def get_model():
+    # Lista de modelos a probar (del más nuevo al más antiguo/compatible)
+    modelos_a_probar = [
+        "gemini-1.5-flash",          # El estándar rápido
+        "gemini-1.5-flash-latest",   # Alias del último flash
+        "gemini-1.5-flash-001",      # Versión específica estable
+        "gemini-1.5-pro",            # Versión Pro (más potente, menos límite)
+        "gemini-pro"                 # Versión 1.0 (El viejo confiable)
+    ]
+    
+    for modelo in modelos_a_probar:
+        try:
+            # Intentamos inicializar
+            llm = ChatGoogleGenerativeAI(
+                model=modelo, 
+                temperature=0.1,
+                convert_system_message_to_human=True
+            )
+            # Prueba de fuego: una invocación vacía para ver si la API responde
+            # (Esto no gasta tokens reales, solo verifica conexión)
+            return llm, modelo
+        except Exception:
+            continue # Si falla, probamos el siguiente
+            
+    return None, None
 
 # --- CONFIGURACIÓN DEL MODELO ---
 if "llm" not in st.session_state:
-    try:
-        # INTENTO 1: Usamos la versión 2.0 Flash (Equilibrio perfecto y disponible en tu cuenta)
-        st.session_state.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash", 
-            temperature=0.1,
-            convert_system_message_to_human=True
-        )
-    except Exception as e:
-        # INTENTO 2: Si falla, probamos con la versión Pro estándar
-        st.session_state.llm = ChatGoogleGenerativeAI(
-            model="gemini-pro", 
-            temperature=0.1
-        )
+    with st.spinner("⏳ Conectando con el mejor modelo disponible para tu cuenta..."):
+        llm_encontrado, nombre_modelo = get_model()
+        
+        if llm_encontrado:
+            st.session_state.llm = llm_encontrado
+            st.toast(f"✅ Conectado exitosamente usando: {nombre_modelo}", icon="🚀")
+        else:
+            st.error("❌ No se pudo conectar con ningún modelo de Google. Es posible que tu API Key tenga restricciones severas.")
+            st.stop()
 
-# --- INICIALIZAR HISTORIAL (AQUÍ ESTÁ LA CORRECCIÓN DE ESTILO) ---
+# --- INICIALIZAR HISTORIAL ---
 if "messages" not in st.session_state:
     system_prompt = """
     Eres un profesor experto en Matemáticas III (Cálculo Vectorial).
     
-    REGLA DE ORO DE FORMATO (NO REPETIR):
-    1. NUNCA escribas la misma expresión dos veces (una en texto y otra en LaTeX).
-    2. Escribe DIRECTAMENTE en LaTeX usando signos de dólar ($).
-       - MAL: "La función f(x) = x, es decir $f(x)=x$" (Esto es redundante).
-       - BIEN: "La función $f(x)=x$..." (Esto es correcto).
+    REGLA DE FORMATO:
+    1. Escribe fórmulas DIRECTAMENTE en LaTeX usando signos de dólar ($).
+       - BIEN: "La función es $f(x)=x^2$"
+    2. NO repitas la fórmula en texto plano antes del LaTeX.
     
-    REGLAS VISUALES:
-    1. Usa LaTeX estándar: $ \int x dx $.
-    2. Ecuaciones grandes o pasos importantes deben ir centrados con doble signo: $$ \oint_C \vec{F} \cdot d\vec{r} $$
-    3. Separa los pasos con saltos de línea claros.
-    
-    REGLAS PARA GRAFICAR (PYTHON):
-    Si necesitas graficar una región o curva:
-    1. Genera código Python dentro de triples comillas (```python).
-    2. Usa TEXTO SIMPLE para títulos y etiquetas (No LaTeX en plt.title para evitar errores).
-    3. Usa plt.grid(True) y asegúrate de que el gráfico sea claro.
+    REGLAS GRÁFICAS (PYTHON):
+    Si necesitas graficar:
+    1. Genera código Python (matplotlib) dentro de ```python.
+    2. Usa TEXTO SIMPLE para títulos (nada de LaTeX en plt.title).
+    3. Usa plt.grid(True).
     """
     st.session_state.messages = [SystemMessage(content=system_prompt)]
     st.session_state.chat_display = [] 
 
-# --- MOSTRAR CHAT PREVIO ---
+# --- MOSTRAR CHAT ---
 for msg in st.session_state.chat_display:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -98,60 +116,50 @@ for msg in st.session_state.chat_display:
 # --- LÓGICA DEL CHAT ---
 if prompt := st.chat_input("Escribe tu pregunta aquí..."):
     
-    # 1. Mostrar mensaje del usuario
     with st.chat_message("user"):
         st.markdown(prompt)
     
-    # 2. Preparar mensaje para la IA
     content_payload = []
     content_payload.append({"type": "text", "text": prompt})
     
     if image_content:
         content_payload.append(image_content)
-        st.sidebar.info("📎 Enviando imagen con la pregunta...")
+        st.sidebar.info("📎 Enviando imagen...")
 
     st.session_state.messages.append(HumanMessage(content=content_payload))
     st.session_state.chat_display.append({"role": "user", "content": prompt})
 
-    # 3. Generar Respuesta
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        with st.spinner("El profesor está pensando..."):
+        with st.spinner("Pensando..."):
             try:
                 response = st.session_state.llm.invoke(st.session_state.messages)
                 full_response = response.content
                 
-                # Unificar lista
                 if isinstance(full_response, list):
                     full_response = "".join([str(x) for x in full_response])
                 
-                # --- LIMPIEZA ADICIONAL ---
-                # A veces el modelo deja espacios feos en integrales, esto ayuda visualmente
+                # Limpieza visual
                 full_response = full_response.replace(" , dx", " \, dx")
                 
-                # --- SEPARAR TEXTO Y CÓDIGO ---
                 parts = full_response.split("```python")
                 text_part = parts[0]
                 
-                # Renderizar Texto
                 message_placeholder.markdown(text_part)
                 
-                # Ejecutar Gráfico
                 chart_fig = None
                 if len(parts) > 1:
                     code_block = parts[1].split("```")[0]
                     try:
                         plt.clf()
-                        # Contexto seguro para gráficas
                         local_context = {"plt": plt, "np": np}
                         exec(code_block, {}, local_context)
                         fig = plt.gcf()
                         st.pyplot(fig)
                         chart_fig = fig
-                    except Exception as e:
-                        st.warning(f"No se pudo generar el gráfico visualmente, pero el cálculo es correcto.")
+                    except Exception:
+                        st.warning("Gráfico no disponible visualmente.")
 
-                # Guardar respuesta
                 st.session_state.messages.append(response)
                 
                 display_entry = {"role": "assistant", "content": text_part}
@@ -160,4 +168,4 @@ if prompt := st.chat_input("Escribe tu pregunta aquí..."):
                 st.session_state.chat_display.append(display_entry)
                 
             except Exception as e:
-                st.error(f"Ocurrió un error: {e}")
+                st.error(f"Error de conexión: {e}")
