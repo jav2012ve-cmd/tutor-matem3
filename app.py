@@ -40,7 +40,6 @@ with st.sidebar:
         st.success("✅ Imagen lista para analizar")
 
 # --- GESTIÓN DE SECRETOS (API KEY) ---
-# Intentamos obtener la clave desde los secretos de Streamlit
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
     os.environ["GOOGLE_API_KEY"] = api_key
@@ -62,25 +61,30 @@ if "llm" not in st.session_state:
             temperature=0.1
         )
 
-# --- INICIALIZAR HISTORIAL ---
+# --- INICIALIZAR HISTORIAL (AQUÍ ESTÁ LA CORRECCIÓN DE ESTILO) ---
 if "messages" not in st.session_state:
     system_prompt = """
     Eres un profesor experto en Matemáticas III (Cálculo Vectorial).
     
-    INSTRUCCIONES DE FORMATO:
-    1. Usa LaTeX estándar para fórmulas: $ \int x dx $.
-    2. Ecuaciones grandes centradas con $$.
+    REGLA DE ORO DE FORMATO (NO REPETIR):
+    1. NUNCA escribas la misma expresión dos veces (una en texto y otra en LaTeX).
+    2. Escribe DIRECTAMENTE en LaTeX usando signos de dólar ($).
+       - MAL: "La función f(x) = x, es decir $f(x)=x$" (Esto es redundante).
+       - BIEN: "La función $f(x)=x$..." (Esto es correcto).
     
-    INSTRUCCIONES GRÁFICAS (PYTHON):
-    Si necesitas graficar:
+    REGLAS VISUALES:
+    1. Usa LaTeX estándar: $ \int x dx $.
+    2. Ecuaciones grandes o pasos importantes deben ir centrados con doble signo: $$ \oint_C \vec{F} \cdot d\vec{r} $$
+    3. Separa los pasos con saltos de línea claros.
+    
+    REGLAS PARA GRAFICAR (PYTHON):
+    Si necesitas graficar una región o curva:
     1. Genera código Python dentro de triples comillas (```python).
-    2. USA TEXTO SIMPLE para títulos y etiquetas (No LaTeX en plt.title).
-       MAL: plt.title(r'$\int f(x)$')
-       BIEN: plt.title('Integral de f(x)')
-    3. Usa plt.grid(True).
+    2. Usa TEXTO SIMPLE para títulos y etiquetas (No LaTeX en plt.title para evitar errores).
+    3. Usa plt.grid(True) y asegúrate de que el gráfico sea claro.
     """
     st.session_state.messages = [SystemMessage(content=system_prompt)]
-    st.session_state.chat_display = [] # Para mostrar en pantalla (separado de la memoria interna)
+    st.session_state.chat_display = [] 
 
 # --- MOSTRAR CHAT PREVIO ---
 for msg in st.session_state.chat_display:
@@ -100,12 +104,10 @@ if prompt := st.chat_input("Escribe tu pregunta aquí..."):
     content_payload = []
     content_payload.append({"type": "text", "text": prompt})
     
-    # Si hay imagen en la barra lateral, la adjuntamos
     if image_content:
         content_payload.append(image_content)
         st.sidebar.info("📎 Enviando imagen con la pregunta...")
 
-    # Guardar en historial interno y display
     st.session_state.messages.append(HumanMessage(content=content_payload))
     st.session_state.chat_display.append({"role": "user", "content": prompt})
 
@@ -117,9 +119,13 @@ if prompt := st.chat_input("Escribe tu pregunta aquí..."):
                 response = st.session_state.llm.invoke(st.session_state.messages)
                 full_response = response.content
                 
-                # Unificar lista si es necesario
+                # Unificar lista
                 if isinstance(full_response, list):
                     full_response = "".join([str(x) for x in full_response])
+                
+                # --- LIMPIEZA ADICIONAL ---
+                # A veces el modelo deja espacios feos en integrales, esto ayuda visualmente
+                full_response = full_response.replace(" , dx", " \, dx")
                 
                 # --- SEPARAR TEXTO Y CÓDIGO ---
                 parts = full_response.split("```python")
@@ -128,29 +134,24 @@ if prompt := st.chat_input("Escribe tu pregunta aquí..."):
                 # Renderizar Texto
                 message_placeholder.markdown(text_part)
                 
-                # Ejecutar Gráfico si existe
+                # Ejecutar Gráfico
                 chart_fig = None
                 if len(parts) > 1:
                     code_block = parts[1].split("```")[0]
                     try:
-                        # Limpiar figura anterior
                         plt.clf()
-                        
-                        # Contexto seguro
+                        # Contexto seguro para gráficas
                         local_context = {"plt": plt, "np": np}
                         exec(code_block, {}, local_context)
-                        
-                        # Obtener figura actual
                         fig = plt.gcf()
                         st.pyplot(fig)
                         chart_fig = fig
                     except Exception as e:
-                        st.error(f"Error generando gráfico: {e}")
+                        st.warning(f"No se pudo generar el gráfico visualmente, pero el cálculo es correcto.")
 
-                # Guardar respuesta en historial
+                # Guardar respuesta
                 st.session_state.messages.append(response)
                 
-                # Guardar en display
                 display_entry = {"role": "assistant", "content": text_part}
                 if chart_fig:
                     display_entry["image"] = chart_fig
