@@ -14,14 +14,28 @@ st.set_page_config(
 )
 
 st.title("🎓 Tutor de Matemáticas III (Cálculo Vectorial)")
-st.markdown("""
-**Instrucciones:**
-1. Escribe tu duda en el chat.
-2. Si tienes un ejercicio en imagen, **súbelo en la barra lateral** antes de preguntar.
-""")
 
-# --- BARRA LATERAL (SUBIDA DE IMAGEN) ---
+# --- BARRA LATERAL (CONFIGURACIÓN Y FOTOS) ---
 with st.sidebar:
+    st.header("⚙️ Configuración Técnica")
+    
+    # AQUÍ ESTÁ LA SOLUCIÓN: Un selector para que pruebes cuál te funciona
+    modelo_seleccionado = st.selectbox(
+        "Selecciona el Modelo de IA:",
+        [
+            "gemini-1.5-flash-001",   # Opción 1: Versión específica (Suele funcionar cuando la normal falla)
+            "gemini-1.5-flash-8b",    # Opción 2: Versión ligera nueva
+            "gemini-pro",             # Opción 3: Versión 1.0 (La vieja confiable)
+            "gemini-1.5-pro",         # Opción 4: Versión Potente
+            "gemini-1.5-flash"        # Opción 5: La estándar (que te dio error)
+        ],
+        index=0 # Por defecto probamos la primera
+    )
+    
+    st.info(f"Usando motor: {modelo_seleccionado}")
+    
+    st.divider()
+    
     st.header("📂 Subir Ejercicio")
     uploaded_file = st.file_uploader("Sube una foto del problema", type=["jpg", "png", "jpeg"])
     
@@ -36,7 +50,7 @@ with st.sidebar:
         image.save(buffered, format="JPEG")
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
         image_content = {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_str}"}}
-        st.success("✅ Imagen lista para analizar")
+        st.success("✅ Imagen lista")
 
 # --- GESTIÓN DE SECRETOS ---
 try:
@@ -46,46 +60,19 @@ try:
         st.error("⚠️ Falta la API KEY en los 'Secrets'.")
         st.stop()
 except:
-    st.warning("Nota: Ejecutando en modo local o sin secretos configurados.")
+    st.warning("Nota: Ejecutando sin secretos configurados.")
 
-# --- FUNCIÓN INTELIGENTE PARA SELECCIONAR MODELO ---
-def get_model():
-    # Lista de modelos a probar (del más nuevo al más antiguo/compatible)
-    modelos_a_probar = [
-        "gemini-1.5-flash",          # El estándar rápido
-        "gemini-1.5-flash-latest",   # Alias del último flash
-        "gemini-1.5-flash-001",      # Versión específica estable
-        "gemini-1.5-pro",            # Versión Pro (más potente, menos límite)
-        "gemini-pro"                 # Versión 1.0 (El viejo confiable)
-    ]
-    
-    for modelo in modelos_a_probar:
-        try:
-            # Intentamos inicializar
-            llm = ChatGoogleGenerativeAI(
-                model=modelo, 
-                temperature=0.1,
-                convert_system_message_to_human=True
-            )
-            # Prueba de fuego: una invocación vacía para ver si la API responde
-            # (Esto no gasta tokens reales, solo verifica conexión)
-            return llm, modelo
-        except Exception:
-            continue # Si falla, probamos el siguiente
-            
-    return None, None
-
-# --- CONFIGURACIÓN DEL MODELO ---
-if "llm" not in st.session_state:
-    with st.spinner("⏳ Conectando con el mejor modelo disponible para tu cuenta..."):
-        llm_encontrado, nombre_modelo = get_model()
-        
-        if llm_encontrado:
-            st.session_state.llm = llm_encontrado
-            st.toast(f"✅ Conectado exitosamente usando: {nombre_modelo}", icon="🚀")
-        else:
-            st.error("❌ No se pudo conectar con ningún modelo de Google. Es posible que tu API Key tenga restricciones severas.")
-            st.stop()
+# --- INICIALIZAR EL MODELO (Con el que seleccionaste en el menú) ---
+if "llm" not in st.session_state or st.session_state.get("last_model") != modelo_seleccionado:
+    try:
+        st.session_state.llm = ChatGoogleGenerativeAI(
+            model=modelo_seleccionado,
+            temperature=0.1,
+            convert_system_message_to_human=True
+        )
+        st.session_state.last_model = modelo_seleccionado
+    except Exception as e:
+        st.error(f"Error cargando modelo: {e}")
 
 # --- INICIALIZAR HISTORIAL ---
 if "messages" not in st.session_state:
@@ -131,7 +118,7 @@ if prompt := st.chat_input("Escribe tu pregunta aquí..."):
 
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        with st.spinner("Pensando..."):
+        with st.spinner(f"Pensando con {modelo_seleccionado}..."):
             try:
                 response = st.session_state.llm.invoke(st.session_state.messages)
                 full_response = response.content
@@ -139,7 +126,6 @@ if prompt := st.chat_input("Escribe tu pregunta aquí..."):
                 if isinstance(full_response, list):
                     full_response = "".join([str(x) for x in full_response])
                 
-                # Limpieza visual
                 full_response = full_response.replace(" , dx", " \, dx")
                 
                 parts = full_response.split("```python")
@@ -158,7 +144,7 @@ if prompt := st.chat_input("Escribe tu pregunta aquí..."):
                         st.pyplot(fig)
                         chart_fig = fig
                     except Exception:
-                        st.warning("Gráfico no disponible visualmente.")
+                        pass
 
                 st.session_state.messages.append(response)
                 
@@ -168,4 +154,5 @@ if prompt := st.chat_input("Escribe tu pregunta aquí..."):
                 st.session_state.chat_display.append(display_entry)
                 
             except Exception as e:
-                st.error(f"Error de conexión: {e}")
+                st.error(f"❌ Error con {modelo_seleccionado}: {e}")
+                st.info("💡 PRUEBA CAMBIAR EL MODELO EN LA BARRA LATERAL IZQUIERDA")
