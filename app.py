@@ -50,13 +50,14 @@ except:
 # --- CONFIGURACIÓN DEL MODELO ---
 if "llm" not in st.session_state:
     try:
-        # CAMBIO IMPORTANTE: Usamos el modelo 1.5 Flash que tiene 1500 peticiones diarias
+        # INTENTO 1: Usamos la versión 2.0 Flash (Equilibrio perfecto y disponible en tu cuenta)
         st.session_state.llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash", 
+            model="gemini-2.0-flash", 
             temperature=0.1,
             convert_system_message_to_human=True
         )
-    except:
+    except Exception as e:
+        # INTENTO 2: Si falla, probamos con la versión Pro estándar
         st.session_state.llm = ChatGoogleGenerativeAI(
             model="gemini-pro", 
             temperature=0.1
