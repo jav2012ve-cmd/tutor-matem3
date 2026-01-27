@@ -7,7 +7,7 @@ from PIL import Image
 
 # --- CONFIGURACIÓN BÁSICA ---
 st.set_page_config(page_title="Tutor Mate III", page_icon="🎓")
-st.title("🎓 Tutor de Matemáticas III (Modo Universal)")
+st.title("🎓 Tutor de Matemáticas III")
 
 # --- CONFIGURACIÓN DE API KEY ---
 try:
@@ -20,44 +20,30 @@ try:
 except Exception as e:
     st.error(f"Error de configuración: {e}")
 
-# --- AUTO-DETECCIÓN DE MODELO (LA SOLUCIÓN) ---
-# En lugar de forzar un nombre, buscamos cuál está disponible
-@st.cache_resource
+# --- AUTO-DETECCIÓN DE MODELO (SIN CACHÉ PARA EVITAR ERRORES) ---
 def get_working_model():
-    model_name = None
+    # Intentamos listar los modelos disponibles para tu cuenta
     try:
-        # Preguntamos a Google qué modelos hay
-        st.toast("🔍 Buscando modelos disponibles...", icon="🤖")
+        model_name = None
         for m in genai.list_models():
-            # Buscamos modelos que sirvan para generar contenido (chat)
             if 'generateContent' in m.supported_generation_methods:
-                # Preferimos modelos flash o pro
-                if 'flash' in m.name or 'pro' in m.name:
-                    model_name = m.name
-                    break
+                if 'flash' in m.name: # Prioridad a Flash (más rápido y barato)
+                    return m.name
         
-        # Si no encontramos uno específico, agarramos el primero que sirva
-        if not model_name:
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    model_name = m.name
-                    break
-
-        if model_name:
-            return model_name
-        else:
-            return None
+        # Si no encontramos Flash, devolvemos el primero que sirva
+        for m in genai.list_models():
+             if 'generateContent' in m.supported_generation_methods:
+                return m.name
+                
+        return "gemini-1.5-flash" # Fallback por defecto si no encuentra nada
     except Exception as e:
-        st.error(f"Error listando modelos: {e}")
-        return None
+        return "gemini-1.5-flash" # Fallback en caso de error
 
-# Ejecutamos la búsqueda
+# Ejecutamos la búsqueda (Directo, sin guardar en memoria)
 nombre_modelo_real = get_working_model()
 
-if nombre_modelo_real:
-    st.caption(f"✅ Conectado exitosamente usando el modelo: `{nombre_modelo_real}`")
-    
-    # Configuración del Sistema
+# --- INICIALIZACIÓN DEL MODELO ---
+try:
     SYSTEM_PROMPT = """
     Eres un profesor experto en Matemáticas III (Cálculo Vectorial).
     1. Usa LaTeX ($...$) para fórmulas.
@@ -66,16 +52,14 @@ if nombre_modelo_real:
        - Usa plt.grid(True).
     """
     
-    # Iniciamos el modelo encontrado
     model = genai.GenerativeModel(
         model_name=nombre_modelo_real,
         system_instruction=SYSTEM_PROMPT,
         generation_config={"temperature": 0.1}
     )
-
-else:
-    st.error("❌ CRÍTICO: Tu API Key es válida, pero Google dice que NO tienes acceso a ningún modelo.")
-    st.warning("Solución: Crea una API Key nueva en un PROYECTO NUEVO de Google AI Studio (usando VPN).")
+    st.caption(f"✅ Conectado a: `{nombre_modelo_real}`")
+except Exception as e:
+    st.error(f"Error iniciando el modelo: {e}")
     st.stop()
 
 # --- INTERFAZ DE USUARIO ---
