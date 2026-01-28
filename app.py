@@ -107,10 +107,11 @@ with st.sidebar:
     ruta = st.session_state.modo_actual
 
     # LÓGICA RUTA A: TEMARIO DETALLADO
+    # LÓGICA RUTA A: ENTRENAMIENTO PROACTIVO
     if ruta == "a) Entrenamiento (Temario)":
         st.write("### 📘 Temario Detallado")
         
-        # Lista exacta solicitada
+        # Lista de Temas (Igual que antes)
         temas_detallados = [
             "1.1.1 Integrales Directas (Tabla)",
             "1.1.2 Cambios de variables (Sustitución)",
@@ -132,10 +133,41 @@ with st.sidebar:
             "2.3 Aplicaciones de Ecuaciones Diferenciales en Economía"
         ]
         
-        tema = st.selectbox("Selecciona el punto específico:", temas_detallados)
+        # Selectbox
+        tema_seleccionado = st.selectbox("Selecciona el punto específico:", temas_detallados)
         
-        contexto_sistema = f"{base_context}\nEl alumno quiere repasar el punto: '{tema}'. Explica el método o concepto, sus condiciones de uso y da un ejemplo relevante para economía."
+        # --- LÓGICA DE DISPARO AUTOMÁTICO ---
+        # Verificamos si es un tema nuevo para saludar y explicar
+        if "ultimo_tema" not in st.session_state or st.session_state.ultimo_tema != tema_seleccionado:
+            
+            # 1. Actualizamos el estado para no repetir
+            st.session_state.ultimo_tema = tema_seleccionado
+            
+            # 2. Creamos el Prompt de Inicio para la IA
+            prompt_inicio = f"""
+            Actúa como Profesor de Economía de la UCAB.
+            El alumno acaba de seleccionar el tema: '{tema_seleccionado}'.
+            
+            TU TAREA AHORA MISMO:
+            1. Saluda y define brevemente el concepto matemático (máximo 2 líneas).
+            2. Explica su utilidad específica para un economista (ej: costo marginal, modelos dinámicos).
+            3. Plantea UN ejercicio reto sencillo para empezar (NO lo resuelvas, solo plantéalo).
+            """
+            
+            # 3. Generamos la respuesta automática (Usando spinner para UX)
+            with st.spinner(f"Preparando clase sobre {tema_seleccionado}..."):
+                try:
+                    # Usamos un chat temporal para esta introducción
+                    intro_response = model.generate_content(prompt_inicio)
+                    
+                    # Agregamos al historial del chat visible
+                    st.session_state.messages.append({"role": "assistant", "content": intro_response.text})
+                    st.rerun() # Recargamos para que aparezca el mensaje inmediatamente
+                except Exception as e:
+                    st.error(f"Error generando lección: {e}")
 
+        # Contexto persistente para las siguientes preguntas del usuario
+        contexto_sistema = f"{base_context}\nEstamos en una sesión de entrenamiento sobre: '{tema_seleccionado}'. El alumno intentará resolver el ejercicio que le propusiste. Corrígelo socráticamente."
     # LÓGICA RUTA B: CONSULTA ABIERTA
     elif ruta == "b) Respuesta Guiada (Consultas)":
         st.info("Sube tu ejercicio. Te ayudaré a plantearlo.")
@@ -203,6 +235,7 @@ if prompt:
             
         except Exception as e:
             placeholder.error(f"Error: {e}")
+
 
 
 
