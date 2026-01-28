@@ -188,7 +188,43 @@ st.markdown("""
 st.divider()
 if ruta is None:
     st.info("⬅️ Para comenzar, selecciona una opción en el menú y presiona el botón **'Iniciar Sesión'**.")
-    st.stop() 
+    st.stop()
+    # --- ZONA DE CONTENIDO VISUAL (BLOQUE DERECHO) ---
+if ruta == "a) Entrenamiento (Temario)":
+    
+    # Recuperamos el tema seleccionado
+    tema_actual = st.session_state.get("tema_seleccionado", "")
+
+    # CASO 1.1.1: INTEGRALES DIRECTAS (Tu contenido)
+    if tema_actual == "1.1.1 Integrales Directas":
+        st.subheader("1.1.1 Integrales Directas")
+        
+        st.markdown("#### 1. Definición")
+        st.info("La definición de integral indefinida está ampliamente relacionada con el concepto de derivada.")
+        st.latex(r"f(x) = \int g(x) dx \iff \frac{d}{dx}[f(x)] = g(x)")
+        
+        st.markdown("#### 2. Propiedades Básicas")
+        col_prop1, col_prop2 = st.columns(2)
+        with col_prop1:
+            st.latex(r"\int [f(x) \pm g(x)] dx = \int f(x) dx \pm \int g(x) dx")
+        with col_prop2:
+            st.latex(r"\int C \cdot f(x) dx = C \int f(x) dx")
+            
+        st.markdown("#### 3. Tabla de Integrales Inmediatas")
+        with st.expander("Ver Tabla Completa", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.latex(r"\int x^n dx = \frac{x^{n+1}}{n+1}, \quad n \neq -1")
+                st.latex(r"\int \frac{1}{x} dx = \ln|x|")
+                st.latex(r"\int e^{ax+b} dx = \frac{1}{a}e^{ax+b}")
+                st.latex(r"\int \ln x dx = x\ln x - x")
+            with col2:
+                st.latex(r"\int a^x dx = \frac{1}{\ln a}a^x")
+                st.latex(r"\int \frac{dx}{x^2 + a^2} = \frac{1}{a}\arctan\left(\frac{x}{a}\right)")
+                st.latex(r"\int \frac{dx}{\sqrt{a^2-x^2}} = \arcsin\left(\frac{x}{a}\right)")
+                st.latex(r"\int \frac{dx}{\sqrt{x^2 \pm a^2}} = \ln|x + \sqrt{x^2 \pm a^2}|")
+
+    st.divider() # Separador antes del chat
 # CHAT
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -227,6 +263,7 @@ if prompt:
             
         except Exception as e:
             placeholder.error(f"Error: {e}")
+
 
 
 
