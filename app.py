@@ -142,7 +142,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.divider()
-
+if ruta is None:
+    st.info("⬅️ Para comenzar, por favor **selecciona un Modo de Estudio** en el menú de la izquierda.")
+    st.stop()  # DETIENE LA EJECUCIÓN AQUÍ hasta que el usuario elija algo
 # CHAT
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -181,4 +183,5 @@ if prompt:
             
         except Exception as e:
             placeholder.error(f"Error: {e}")
+
 
