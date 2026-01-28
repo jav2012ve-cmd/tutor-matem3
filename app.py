@@ -65,10 +65,11 @@ with st.sidebar:
     st.markdown("### 🏛️ Escuela de Economía")
     
     ruta = st.radio(
-        "Modo de Estudio:",
+        "Selecciona tu Modo de Estudio:",
         ["a) Entrenamiento (Temario)", 
          "b) Respuesta Guiada (Consultas)", 
-         "c) Autoevaluación (Quiz)"]
+         "c) Autoevaluación (Quiz)"],
+        index=None
     )
     
     st.divider()
@@ -180,3 +181,4 @@ if prompt:
             
         except Exception as e:
             placeholder.error(f"Error: {e}")
+
