@@ -111,8 +111,9 @@ with st.sidebar:
     if ruta == "a) Entrenamiento (Temario)":
         st.write("### 📘 Temario Detallado")
         
+        # 1. LISTA DE TEMAS (Ajustada: 1.1.1 limpio)
         temas_detallados = [
-            "1.1.1 Integrales Directas (Tabla)",
+            "1.1.1 Integrales Directas",  # <--- CAMBIO AQUÍ
             "1.1.2 Cambios de variables (Sustitución)",
             "1.1.3 División de Polinomios",
             "1.1.4 Fracciones Simples",
@@ -134,31 +135,66 @@ with st.sidebar:
         
         tema_seleccionado = st.selectbox("Selecciona el punto específico:", temas_detallados)
         
-        # --- FILTRO PEDAGÓGICO: ¿TÉCNICA O APLICACIÓN? ---
-        if tema_seleccionado.startswith("1.1"):
-            # Modo Técnico (Matemática Pura)
-            enfoque_instruccion = "Céntrate EXCLUSIVAMENTE en la técnica matemática, el álgebra y el algoritmo para resolver la integral indefinida. NO hables de economía todavía. El objetivo es dominar la manipulación simbólica."
-            tarea_inmediata = "2. Explica los pasos clave del método matemático (identificación, operación algebraica, solución)."
-        else:
-            # Modo Aplicado (Economía)
-            enfoque_instruccion = "Conecta este concepto matemático con su utilidad económica (Excedentes, Crecimiento, Utilidad)."
-            tarea_inmediata = "2. Explica brevemente la intuición económica detrás de este concepto."
+        # --- ZONA DE MATERIAL DE CLASE (PERSONALIZACIÓN TOTAL) ---
+        
+        # CASO ESPECIAL: 1.1.1 INTEGRALES DIRECTAS (Tus Apuntes)
+        if tema_seleccionado == "1.1.1 Integrales Directas":
+            st.markdown("#### 1. Definición de Integral Indefinida")
+            st.info("La definición está ampliamente relacionada con el concepto de derivada.")
+            st.latex(r"f(x) = \int g(x) dx \iff \frac{d}{dx}[f(x)] = g(x)")
+            
+            st.markdown("#### 2. Propiedades Básicas")
+            st.markdown("Las propiedades de la integral son consecuencia directa de las derivadas:")
+            st.latex(r"\int [f(x) \pm g(x)] dx = \int f(x) dx \pm \int g(x) dx")
+            st.latex(r"\int C \cdot f(x) dx = C \int f(x) dx")
+            
+            st.markdown("#### 3. Tabla de Integrales Inmediatas")
+            st.markdown("Estas son las fórmulas fundamentales que debes dominar:")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.latex(r"\int x^n dx = \frac{x^{n+1}}{n+1}, \quad n \neq -1")
+                st.latex(r"\int \frac{1}{x} dx = \ln|x|")
+                st.latex(r"\int e^{ax+b} dx = \frac{1}{a}e^{ax+b}")
+            with col2:
+                st.latex(r"\int a^x dx = \frac{1}{\ln a}a^x")
+                st.latex(r"\int \frac{dx}{x^2 + a^2} = \frac{1}{a}\arctan\left(\frac{x}{a}\right)")
+                st.latex(r"\int \frac{dx}{\sqrt{a^2-x^2}} = \arcsin\left(\frac{x}{a}\right)")
 
-        # --- LÓGICA DE DISPARO AUTOMÁTICO ---
+        # --- LÓGICA DE DISPARO AUTOMÁTICO (IA) ---
         if "ultimo_tema" not in st.session_state or st.session_state.ultimo_tema != tema_seleccionado:
             st.session_state.ultimo_tema = tema_seleccionado
             
-            prompt_inicio = f"""
-            Actúa como Profesor de Matemáticas III de la UCAB.
-            El alumno acaba de seleccionar el tema: '{tema_seleccionado}'.
+            # CONFIGURACIÓN DEL PROMPT SEGÚN EL TEMA
+            if tema_seleccionado == "1.1.1 Integrales Directas":
+                # Para este tema, la IA NO explica, solo propone ejercicios basados en la tabla mostrada
+                prompt_inicio = """
+                Actúa como Profesor de Matemáticas III.
+                Acabas de mostrarle al alumno la tabla de integrales inmediatas y las propiedades de linealidad.
+                
+                TU TAREA:
+                1. NO expliques la teoría (ya está en pantalla).
+                2. Propón directamente UN ejercicio sencillo para verificar que entendió cómo usar la tabla (ej: integral de un polinomio simple o una exponencial básica).
+                3. Pídele que indique qué propiedad usó.
+                """
             
-            TU TAREA AHORA MISMO:
-            1. Saluda y define brevemente la técnica o concepto (máximo 2 líneas).
-            {tarea_inmediata}
-            3. Plantea UN ejercicio reto sencillo para practicar (NO lo resuelvas, solo plantéalo).
-            """
+            elif tema_seleccionado.startswith("1.1"):
+                # Resto de métodos (Matemática Pura)
+                prompt_inicio = f"""
+                Actúa como Profesor de Matemáticas III. Tema: '{tema_seleccionado}'.
+                1. Define brevemente la técnica matemática (Álgebra/Algoritmo).
+                2. Plantea un ejercicio reto sencillo (Solo plantéalo).
+                Enfoque: Rigor matemático, cero economía por ahora.
+                """
+            else:
+                # Temas Aplicados (Economía)
+                prompt_inicio = f"""
+                Actúa como Profesor de Economía. Tema: '{tema_seleccionado}'.
+                1. Conecta el concepto con su utilidad económica (Excedentes, Crecimiento, etc.).
+                2. Plantea un ejercicio conceptual.
+                """
             
-            with st.spinner(f"Preparando lección de {tema_seleccionado}..."):
+            with st.spinner("Analizando material de clase..."):
                 try:
                     intro_response = model.generate_content(prompt_inicio)
                     st.session_state.messages.append({"role": "assistant", "content": intro_response.text})
@@ -166,8 +202,8 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-        # Actualizamos el contexto del sistema para la charla continua
-        contexto_sistema = f"{base_context}\nTema actual: '{tema_seleccionado}'. ENFOQUE PEDAGÓGICO: {enfoque_instruccion}. El alumno intentará resolver el ejercicio."    # LÓGICA RUTA B: CONSULTA ABIERTA
+        # Contexto persistente
+        contexto_sistema = f"{base_context}\nTema actual: '{tema_seleccionado}'."
     elif ruta == "b) Respuesta Guiada (Consultas)":
         st.info("Sube tu ejercicio. Te ayudaré a plantearlo.")
         contexto_sistema = f"{base_context}\nEl alumno te consultará un ejercicio específico. Identifica errores, sugiere estrategias de resolución (ej: validar si es exacta o lineal) y guía su razonamiento."
@@ -234,6 +270,7 @@ if prompt:
             
         except Exception as e:
             placeholder.error(f"Error: {e}")
+
 
 
 
