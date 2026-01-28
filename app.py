@@ -106,12 +106,11 @@ with st.sidebar:
         
     ruta = st.session_state.modo_actual
 
-    # LÓGICA RUTA A: TEMARIO DETALLADO
+    
     # LÓGICA RUTA A: ENTRENAMIENTO PROACTIVO
     if ruta == "a) Entrenamiento (Temario)":
         st.write("### 📘 Temario Detallado")
         
-        # Lista de Temas (Igual que antes)
         temas_detallados = [
             "1.1.1 Integrales Directas (Tabla)",
             "1.1.2 Cambios de variables (Sustitución)",
@@ -133,42 +132,42 @@ with st.sidebar:
             "2.3 Aplicaciones de Ecuaciones Diferenciales en Economía"
         ]
         
-        # Selectbox
         tema_seleccionado = st.selectbox("Selecciona el punto específico:", temas_detallados)
         
+        # --- FILTRO PEDAGÓGICO: ¿TÉCNICA O APLICACIÓN? ---
+        if tema_seleccionado.startswith("1.1"):
+            # Modo Técnico (Matemática Pura)
+            enfoque_instruccion = "Céntrate EXCLUSIVAMENTE en la técnica matemática, el álgebra y el algoritmo para resolver la integral indefinida. NO hables de economía todavía. El objetivo es dominar la manipulación simbólica."
+            tarea_inmediata = "2. Explica los pasos clave del método matemático (identificación, operación algebraica, solución)."
+        else:
+            # Modo Aplicado (Economía)
+            enfoque_instruccion = "Conecta este concepto matemático con su utilidad económica (Excedentes, Crecimiento, Utilidad)."
+            tarea_inmediata = "2. Explica brevemente la intuición económica detrás de este concepto."
+
         # --- LÓGICA DE DISPARO AUTOMÁTICO ---
-        # Verificamos si es un tema nuevo para saludar y explicar
         if "ultimo_tema" not in st.session_state or st.session_state.ultimo_tema != tema_seleccionado:
-            
-            # 1. Actualizamos el estado para no repetir
             st.session_state.ultimo_tema = tema_seleccionado
             
-            # 2. Creamos el Prompt de Inicio para la IA
             prompt_inicio = f"""
-            Actúa como Profesor de Economía de la UCAB.
+            Actúa como Profesor de Matemáticas III de la UCAB.
             El alumno acaba de seleccionar el tema: '{tema_seleccionado}'.
             
             TU TAREA AHORA MISMO:
-            1. Saluda y define brevemente el concepto matemático (máximo 2 líneas).
-            2. Explica su utilidad específica para un economista (ej: costo marginal, modelos dinámicos).
-            3. Plantea UN ejercicio reto sencillo para empezar (NO lo resuelvas, solo plantéalo).
+            1. Saluda y define brevemente la técnica o concepto (máximo 2 líneas).
+            {tarea_inmediata}
+            3. Plantea UN ejercicio reto sencillo para practicar (NO lo resuelvas, solo plantéalo).
             """
             
-            # 3. Generamos la respuesta automática (Usando spinner para UX)
-            with st.spinner(f"Preparando clase sobre {tema_seleccionado}..."):
+            with st.spinner(f"Preparando lección de {tema_seleccionado}..."):
                 try:
-                    # Usamos un chat temporal para esta introducción
                     intro_response = model.generate_content(prompt_inicio)
-                    
-                    # Agregamos al historial del chat visible
                     st.session_state.messages.append({"role": "assistant", "content": intro_response.text})
-                    st.rerun() # Recargamos para que aparezca el mensaje inmediatamente
+                    st.rerun()
                 except Exception as e:
-                    st.error(f"Error generando lección: {e}")
+                    st.error(f"Error: {e}")
 
-        # Contexto persistente para las siguientes preguntas del usuario
-        contexto_sistema = f"{base_context}\nEstamos en una sesión de entrenamiento sobre: '{tema_seleccionado}'. El alumno intentará resolver el ejercicio que le propusiste. Corrígelo socráticamente."
-    # LÓGICA RUTA B: CONSULTA ABIERTA
+        # Actualizamos el contexto del sistema para la charla continua
+        contexto_sistema = f"{base_context}\nTema actual: '{tema_seleccionado}'. ENFOQUE PEDAGÓGICO: {enfoque_instruccion}. El alumno intentará resolver el ejercicio."    # LÓGICA RUTA B: CONSULTA ABIERTA
     elif ruta == "b) Respuesta Guiada (Consultas)":
         st.info("Sube tu ejercicio. Te ayudaré a plantearlo.")
         contexto_sistema = f"{base_context}\nEl alumno te consultará un ejercicio específico. Identifica errores, sugiere estrategias de resolución (ej: validar si es exacta o lineal) y guía su razonamiento."
@@ -235,6 +234,7 @@ if prompt:
             
         except Exception as e:
             placeholder.error(f"Error: {e}")
+
 
 
 
