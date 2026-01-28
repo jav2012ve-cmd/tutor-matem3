@@ -9,13 +9,47 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CONFIGURACIÓN DE GEMINI ---
+# --- CONFIGURACIÓN DE API KEY ---
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
     st.error("⚠️ Falta la API Key. Configúrala en los Secrets.")
+    st.stop()
 
-model = genai.GenerativeModel('gemini-1.5-flash')
+# --- AUTO-DETECCIÓN DE MODELO (TU SOLUCIÓN ROBUSTA) ---
+def get_working_model():
+    try:
+        # Intentamos listar los modelos disponibles
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                if 'flash' in m.name: # Prioridad a Flash (rápido/barato)
+                    return m.name
+        
+        # Si no hay Flash, devolvemos cualquiera que sirva
+        for m in genai.list_models():
+             if 'generateContent' in m.supported_generation_methods:
+                return m.name
+                
+        return "gemini-1.5-flash" # Fallback final
+    except Exception as e:
+        return "gemini-1.5-flash" # Fallback en caso de error extremo
+
+# Ejecutamos la búsqueda
+nombre_modelo_real = get_working_model()
+
+# --- INICIALIZACIÓN DEL MODELO ---
+try:
+    # Inicializamos sin prompt fijo aquí, porque lo inyectamos dinámicamente según la ruta
+    model = genai.GenerativeModel(
+        model_name=nombre_modelo_real,
+        generation_config={"temperature": 0.3}
+    )
+    # Pequeño indicador para saber qué modelo pescó (solo visible si miras con atención)
+    st.caption(f"⚙️ Sistema conectado a: `{nombre_modelo_real}`")
+except Exception as e:
+    st.error(f"Error iniciando el modelo: {e}")
+    st.stop()
+
 
 # --- INICIALIZACIÓN DEL CHAT ---
 if "messages" not in st.session_state:
@@ -48,6 +82,7 @@ with st.sidebar:
     1. Tus dos pilares fundamentales son: CÁLCULO INTEGRAL y ECUACIONES DIFERENCIALES.
     2. Cuando expliques, trata de buscar aplicaciones económicas (Excedente del consumidor/productor, modelos de crecimiento, curvas de oferta/demanda).
     3. Sé riguroso pero cercano. No resuelvas los ejercicios por el alumno, guíalo socráticamente.
+    4. Usa LaTeX para las fórmulas matemáticas.
     """
 
     # LÓGICA RUTA A: TEMARIO DETALLADO
@@ -129,12 +164,14 @@ if prompt:
     with st.chat_message("assistant"):
         placeholder = st.empty()
         try:
-            full_prompt = f"SISTEMA: {contexto_sistema}\nUSUARIO: {prompt}"
+            # Aquí inyectamos el contexto dinámico definido en la barra lateral
+            full_prompt = f"INSTRUCCIÓN DE SISTEMA: {contexto_sistema}\n\nMENSAJE USUARIO: {prompt}"
             
             if imagen_upload:
                 img = Image.open(imagen_upload)
                 response = model.generate_content([full_prompt, img])
             else:
+                # Usamos chat history simple
                 chat = model.start_chat(history=[])
                 response = chat.send_message(full_prompt)
                 
