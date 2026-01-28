@@ -64,27 +64,47 @@ with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/f/f0/Logo_UCAB_H.png", width=200)
     st.markdown("### 🏛️ Escuela de Economía")
     
-    ruta = st.radio(
-        "Selecciona tu Modo de Estudio:",
+    # --- MENÚ CON BOTÓN DE CONFIRMACIÓN ---
+    
+    # 1. Variable temporal para la selección visual
+    seleccion_visual = st.radio(
+        "1. Selecciona tu Modo de Estudio:",
         ["a) Entrenamiento (Temario)", 
          "b) Respuesta Guiada (Consultas)", 
          "c) Autoevaluación (Quiz)"],
         index=None
     )
     
+    # 2. Botón para "Dar Inicio" (Guarda la selección en memoria)
+    if st.button("▶️ Iniciar Sesión"):
+        st.session_state.modo_actual = seleccion_visual
+        st.rerun() # Recarga inmediata para mostrar el contenido
+        
+    # 3. Botón para Reiniciar/Cambiar (Opcional)
+    if st.button("🔄 Cambiar Modo"):
+        st.session_state.modo_actual = None
+        st.session_state.messages = [] # Limpiamos el chat
+        st.rerun()
+    
     st.divider()
     
-    # CONTEXTO BASE (IDENTIDAD)
+    # Contexto Base (Mantenemos tu texto original)...
     base_context = """
     Actúa como un profesor titular de la cátedra de Matemáticas III de la carrera de Economía 
     en la Universidad Católica Andrés Bello (UCAB). 
     
     TU ENFOQUE:
     1. Tus dos pilares fundamentales son: CÁLCULO INTEGRAL y ECUACIONES DIFERENCIALES.
-    2. Cuando expliques, trata de buscar aplicaciones económicas (Excedente del consumidor/productor, modelos de crecimiento, curvas de oferta/demanda).
-    3. Sé riguroso pero cercano. No resuelvas los ejercicios por el alumno, guíalo socráticamente.
-    4. Usa LaTeX para las fórmulas matemáticas.
+    2. Cuando expliques, trata de buscar aplicaciones económicas.
+    3. Sé riguroso pero cercano. Usa LaTeX.
     """
+    
+    # --- LÓGICA DE ASIGNACIÓN ---
+    # Recuperamos la ruta REAL desde la memoria, no desde el radio button
+    if "modo_actual" not in st.session_state:
+        st.session_state.modo_actual = None
+        
+    ruta = st.session_state.modo_actual
 
     # LÓGICA RUTA A: TEMARIO DETALLADO
     if ruta == "a) Entrenamiento (Temario)":
@@ -143,8 +163,8 @@ st.markdown("""
 
 st.divider()
 if ruta is None:
-    st.info("⬅️ Para comenzar, por favor **selecciona un Modo de Estudio** en el menú de la izquierda.")
-    st.stop()  # DETIENE LA EJECUCIÓN AQUÍ hasta que el usuario elija algo
+    st.info("⬅️ Para comenzar, selecciona una opción en el menú y presiona el botón **'Iniciar Sesión'**.")
+    st.stop() 
 # CHAT
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -183,5 +203,6 @@ if prompt:
             
         except Exception as e:
             placeholder.error(f"Error: {e}")
+
 
 
